@@ -1,6 +1,6 @@
 //
 //  TrackingParameters.swift
-//  CleanURL
+//  URLStripper
 //
 //  Comprehensive database of tracking parameters organized by category
 //  Created on 26/07/2025.
@@ -29,31 +29,6 @@ public struct TrackingParameters {
         return combined
     }()
     
-    /// Returns the set of parameters for the specified categories.
-    ///
-    /// - Parameter categories: The tracking categories to get parameters for
-    /// - Returns: Set of parameter names for the specified categories
-    public static func parameters(for categories: Set<TrackingCategory>) -> Set<String> {
-        var result = Set<String>()
-        
-        for category in categories {
-            switch category {
-            case .analytics:
-                result.formUnion(analytics)
-            case .social:
-                result.formUnion(social)
-            case .email:
-                result.formUnion(email)
-            case .ecommerce:
-                result.formUnion(ecommerce)
-            case .other:
-                result.formUnion(other)
-            }
-        }
-        
-        return result
-    }
-    
     // MARK: - Analytics Parameters
     
     /// Google Analytics, Google Ads, and other analytics tracking parameters.
@@ -68,7 +43,7 @@ public struct TrackingParameters {
         "_ga", "_gl", "ei", "oq", "esrc", "uact", "cd", "cad", "aqs", "sourceid",
         "sxsrf", "rlz", "pcampaignid", "iflsig", "fbs", "ictx", "cshid",
         
-        // Google Search & URL tracking (be careful with 'source' - can be functional)
+        // Google Search & URL tracking
         "sa", "rct", "ved", "usg", "ust", "rja",
         
         // Google DoubleClick & Merchant Centre
@@ -167,7 +142,7 @@ public struct TrackingParameters {
     /// These parameters are used by e-commerce platforms, affiliate networks,
     /// and online marketplaces to track sales, referrals, and conversions.
     public static let ecommerce: Set<String> = [
-        // E-commerce and affiliate tracking (be careful with generic terms)
+        // E-commerce and affiliate tracking
         "mkevt", "mkcid", "mkrid", "campid", "toolid", "customid", "_trksid", "_trkparms",
         "_from", "hash", "_branch_match_id", "irclickid", "irgwc", "epik", "tag",
         "ref", "campaign", "ad_id", "click_id", "campaign_id", "affiliate_id",
@@ -228,7 +203,7 @@ public struct TrackingParameters {
         // Specialized services
         "gdfms", "gdftrk", "gdffi", "__s", "sznclid",
         
-        // Session & misc (excluding YouTube functional parameters)
+        // Session & misc
         "sessionid", "_", "r", "u", "b", "h", "cuid"
     ]
     

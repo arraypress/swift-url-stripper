@@ -146,7 +146,7 @@ final class URLStripperTests: XCTestCase {
         
         // Should preserve the actual destination URL
         let hasURL = cleaned.contains("url=https%3A%2F%2Fexample.com%2Farticle") ||
-                     cleaned.contains("url=https://example.com/article")
+        cleaned.contains("url=https://example.com/article")
         XCTAssertTrue(hasURL, "Should preserve destination URL")
         
         // Should remove Google's tracking
@@ -188,6 +188,71 @@ final class URLStripperTests: XCTestCase {
         let expected = "https://example.com/newsletter"
         
         XCTAssertEqual(cleaned, expected)
+    }
+    
+    // MARK: - Enhanced Real-World Tests
+    
+    func testAmazonInternationalVariations() {
+        let testCases = [
+            ("https://amazon.co.uk/dp/B123?ref=sr_1_1&tag=uk-affiliate", "https://amazon.co.uk/dp/B123"),
+            ("https://amazon.de/dp/B456?ref=sr_1_2&tag=de-tag&language=de", "https://amazon.de/dp/B456?language=de"),
+            ("https://amazon.ca/gp/product/B789?ref=ppx_yo_dt&tag=ca-20", "https://amazon.ca/gp/product/B789")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
+    }
+    
+    func testSocialMediaPlatformVariations() {
+        let testCases = [
+            // TikTok
+            ("https://example.com?ttclid=abc123&is_from_webapp=1&sender_device=pc&id=video", "https://example.com?id=video"),
+            // Instagram
+            ("https://example.com?igshid=MDJmNzVkMjY%3D&utm_source=ig_web&post_id=123", "https://example.com?post_id=123"),
+            // LinkedIn
+            ("https://example.com?li_fat_id=12345&utm_source=linkedin&job_id=456", "https://example.com?job_id=456"),
+            // Reddit
+            ("https://example.com?utm_source=share&utm_medium=web2x&context=3&thread_id=789", "https://example.com?context=3&thread_id=789")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
+    }
+    
+    func testEmailMarketingPlatforms() {
+        let testCases = [
+            // HubSpot
+            ("https://example.com?_hsenc=p2ANqtz-abc&_hsmi=12345&utm_campaign=email", "https://example.com"),
+            // Salesforce Marketing Cloud
+            ("https://example.com?jobid=123&subid=456&sfmc_sub=789&content_id=article", "https://example.com?content_id=article"),
+            // General email tracking
+            ("https://example.com?mkt_tok=eyJ0eXAi&email_source=newsletter&article_id=10", "https://example.com?article_id=10")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
+    }
+    
+    func testNewsAndMediaSites() {
+        let testCases = [
+            // CNN
+            ("https://cnn.com/article?utm_source=twCNN&utm_medium=social&ftag=cnn123", "https://cnn.com/article"),
+            // BBC
+            ("https://bbc.com/news/tech-123?at_medium=custom7&at_campaign=64&article_id=tech-123", "https://bbc.com/news/tech-123?article_id=tech-123"),
+            // NYTimes
+            ("https://nytimes.com/article?smid=tw-nytimes&smtyp=cur&story_id=456", "https://nytimes.com/article?story_id=456")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
     }
     
     // MARK: - Edge Cases
@@ -232,6 +297,125 @@ final class URLStripperTests: XCTestCase {
         XCTAssertEqual(cleaned, expected)
     }
     
+    func testURLsWithSpecialCharacters() {
+        let testCases = [
+            // Encoded characters
+            ("https://example.com?utm_source=test&name=John%20Doe&id=123", "https://example.com?name=John%20Doe&id=123"),
+            // Unicode domain (URLComponents converts to punycode - this is correct behavior)
+            ("https://müller.de/product?utm_source=test&productId=123", "https://xn--mller-kva.de/product?productId=123"),
+            // Special characters in parameters
+            ("https://example.com?utm_campaign=summer%202023&search=cats%20%26%20dogs", "https://example.com?search=cats%20%26%20dogs")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
+    }
+    
+    func testVeryLongURLsWithManyParameters() {
+        // Create a URL with 20+ parameters
+        let baseURL = "https://example.com/very/long/path/to/resource"
+        var params = [String]()
+        
+        // Add tracking parameters
+        params.append("utm_source=google")
+        params.append("utm_medium=cpc")
+        params.append("utm_campaign=summer_sale_2023")
+        params.append("gclid=Cj0KCQjw5ZSWBhCVARIsALERCvxABC123DEF456")
+        params.append("fbclid=IwAR2vQ3K8L9mN0pR1sT2uV3wX4yZ5a6B7c8D9e0F1g2H3i4J5k6L7m8N9o0P")
+        params.append("mc_cid=abc123def456")
+        
+        // Add functional parameters
+        for i in 1...15 {
+            params.append("param\(i)=value\(i)")
+        }
+        
+        let longURL = baseURL + "?" + params.joined(separator: "&")
+        let cleaned = longURL.withoutTracking
+        
+        // Should remove tracking but keep functional parameters
+        XCTAssertFalse(cleaned.contains("utm_"))
+        XCTAssertFalse(cleaned.contains("gclid"))
+        XCTAssertFalse(cleaned.contains("fbclid"))
+        XCTAssertFalse(cleaned.contains("mc_cid"))
+        
+        // Should keep functional parameters
+        for i in 1...15 {
+            XCTAssertTrue(cleaned.contains("param\(i)=value\(i)"))
+        }
+    }
+    
+    func testEmptyAndWhitespaceParameters() {
+        let testCases = [
+            ("https://example.com?utm_source=&id=123", "https://example.com?id=123"),
+            ("https://example.com?utm_source=%20&id=123", "https://example.com?id=123"),
+            ("https://example.com?utm_source=test&id=&page=2", "https://example.com?id=&page=2")
+        ]
+        
+        for (input, expected) in testCases {
+            let cleaned = input.withoutTracking
+            XCTAssertEqual(cleaned, expected, "Failed for: \(input)")
+        }
+    }
+    
+    // MARK: - Array Processing Tests
+    
+    func testBatchURLProcessing() {
+        let urls = [
+            "https://example.com?utm_source=test&id=1",
+            "https://example.com?fbclid=123&id=2",
+            "https://example.com?mc_cid=456&id=3"
+        ]
+        
+        let cleaned = urls.map { $0.withoutTracking }
+        let expected = [
+            "https://example.com?id=1",
+            "https://example.com?id=2",
+            "https://example.com?id=3"
+        ]
+        
+        XCTAssertEqual(cleaned, expected)
+    }
+    
+    func testMixedURLArray() {
+        let urls = [
+            "https://example.com?utm_source=test&id=1",        // Dirty URL
+            "https://example.com?id=2",                        // Clean URL
+            "not-a-url?utm_source=test&id=3",                 // Malformed URL
+            "https://example.com",                              // URL without parameters
+            ""                                                  // Empty string
+        ]
+        
+        let cleaned = urls.map { $0.withoutTracking }
+        let expected = [
+            "https://example.com?id=1",
+            "https://example.com?id=2",
+            "not-a-url?id=3",
+            "https://example.com",
+            ""
+        ]
+        
+        XCTAssertEqual(cleaned, expected)
+    }
+    
+    func testFoundationURLArray() {
+        let urls = [
+            URL(string: "https://example.com?utm_source=test&id=1")!,
+            URL(string: "https://example.com?fbclid=123&id=2")!,
+            URL(string: "https://example.com?id=3")!
+        ]
+        
+        let cleaned = urls.map { $0.withoutTracking }
+        let expected = [
+            URL(string: "https://example.com?id=1")!,
+            URL(string: "https://example.com?id=2")!,
+            URL(string: "https://example.com?id=3")!
+        ]
+        
+        XCTAssertEqual(cleaned, expected)
+    }
+    
     // MARK: - Performance Tests
     
     func testPerformanceWithRealWorldBatch() {
@@ -260,22 +444,33 @@ final class URLStripperTests: XCTestCase {
         }
     }
     
-    // MARK: - Array Processing Tests
+    func testPerformanceVeryLongURL() {
+        // Create URL with 50 parameters
+        var params = [String]()
+        for i in 1...25 {
+            params.append("utm_param\(i)=value\(i)")
+            params.append("functional_param\(i)=value\(i)")
+        }
+        
+        let longURL = "https://example.com?" + params.joined(separator: "&")
+        
+        self.measure {
+            for _ in 0..<100 {
+                _ = longURL.withoutTracking
+            }
+        }
+    }
     
-    func testBatchURLProcessing() {
-        let urls = [
-            "https://example.com?utm_source=test&id=1",
-            "https://example.com?fbclid=123&id=2",
-            "https://example.com?mc_cid=456&id=3"
-        ]
+    func testPerformanceCategorySpecific() {
+        let testURL = "https://example.com?utm_source=google&fbclid=123&mc_cid=456&ref=amazon&id=page"
         
-        let cleaned = urls.map { $0.withoutTracking }
-        let expected = [
-            "https://example.com?id=1",
-            "https://example.com?id=2",
-            "https://example.com?id=3"
-        ]
-        
-        XCTAssertEqual(cleaned, expected)
+        self.measure {
+            for _ in 0..<1000 {
+                _ = testURL.withoutAnalytics
+                _ = testURL.withoutSocial
+                _ = testURL.withoutEmail
+                _ = testURL.withoutEcommerce
+            }
+        }
     }
 }

@@ -1,305 +1,126 @@
 # Swift URL Stripper
 
-A modern Swift package for removing tracking parameters from URLs while preserving functionality.
+A lightweight Swift library for removing tracking parameters from URLs while preserving the parameters that actually matter. It strips analytics, social, email, and e-commerce trackers from both `String` and `URL` values, with a comprehensive built-in database of known tracking parameters and category-specific removal. Zero dependencies, Foundation only.
 
-[![Swift 5.9+](https://img.shields.io/badge/Swift-5.9+-blue.svg)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS%2013%20|%20macOS%2010.15%20|%20tvOS%2013%20|%20watchOS%206-lightgrey.svg)](https://swift.org)
+## Features
 
-## Overview
+- 🎯 **One-call cleanup** — `withoutTracking` removes every known tracking parameter in a single property access
+- 📊 **Category-specific stripping** — remove only analytics, only social, only email, or only e-commerce trackers
+- 🗄️ **Comprehensive database** — hundreds of parameters covering Google, Facebook, TikTok, Mailchimp, HubSpot, Amazon, eBay, and many more
+- 🔡 **Case-insensitive matching** — `UTM_Source` and `utm_source` are both removed
+- 🧩 **Custom parameters** — add your own params to remove, or remove only your params while keeping trackers
+- 🔗 **Works on `String` and `URL`** — identical API surface on both types
+- 🛟 **Robust fallback** — malformed URLs fall back to string-based query parsing instead of failing
+- 🧼 **Clean output** — drops the trailing `?` when no parameters remain
+- 🔒 **Non-mutating** — always returns a new value; the original is never modified
+- 🍎 **Pure Swift, no dependencies** — Foundation only, works fully offline
 
-URLStripper automatically removes tracking parameters from URLs, helping to:
-- **Protect privacy** by removing tracking identifiers
-- **Clean up URLs** for sharing and bookmarking  
-- **Reduce URL length** by removing unnecessary parameters
-- **Maintain functionality** by preserving important query parameters
+## Requirements
 
-## Quick Start
-
-```swift
-import URLStripper
-
-// Basic usage - removes all tracking parameters
-let dirtyURL = "https://example.com?utm_source=newsletter&id=123&fbclid=abc"
-let cleanURL = dirtyURL.withoutTracking
-// Result: "https://example.com?id=123"
-
-// Works with Foundation URL objects too
-let url = URL(string: "https://example.com?gclid=123&page=home")!
-let cleaned = url.withoutTracking
-// Result: URL("https://example.com?page=home")
-```
+- iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+
+- Swift 6.1+
+- Xcode 26.0+
 
 ## Installation
 
 ### Swift Package Manager
 
-Add URLStripper to your project in Xcode:
-
-1. **File → Add Package Dependencies**
-2. Enter the repository URL: `https://github.com/arraypress/swift-url-stripper`
-3. Choose the version and add to your target
-
-Or add it to your `Package.swift`:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/arraypress/swift-url-stripper", from: "1.0.0")
+    .package(url: "https://github.com/arraypress/swift-url-stripper.git", from: "1.0.0")
 ]
 ```
 
-## Core APIs
+## Usage
 
-### String Extensions
-
-#### `withoutTracking: String`
-Removes all tracking parameters from the URL string.
+### Remove all tracking
 
 ```swift
-"https://example.com?utm_source=test&id=123".withoutTracking
-// Result: "https://example.com?id=123"
+import URLStripper
+
+let dirty = "https://example.com?utm_source=newsletter&id=123&fbclid=abc"
+let clean = dirty.withoutTracking
+// "https://example.com?id=123"
+
+// Also works on URL
+let url = URL(string: "https://example.com?utm_source=newsletter&id=123")!
+let cleanURL = url.withoutTracking
+// URL for "https://example.com?id=123"
 ```
 
-#### `withoutAnalytics: String`
-Removes only analytics tracking (Google Analytics, Google Ads, etc.).
+### Remove only a specific category
 
 ```swift
-"https://example.com?utm_source=google&fbclid=123&id=page".withoutAnalytics
-// Result: "https://example.com?fbclid=123&id=page"
+import URLStripper
+
+let url = "https://example.com?utm_source=google&fbclid=123&id=page"
+
+url.withoutAnalytics   // "https://example.com?fbclid=123&id=page"
+url.withoutSocial      // "https://example.com?utm_source=google&id=page"
+url.withoutEmail       // removes mc_cid, mkt_tok, hsa_*, etc.
+url.withoutEcommerce   // removes amazon/ebay/affiliate trackers
 ```
 
-#### `withoutSocial: String`
-Removes only social media tracking (Facebook, Twitter, TikTok, etc.).
+### Custom parameters
 
 ```swift
-"https://example.com?utm_source=google&fbclid=123&id=page".withoutSocial
-// Result: "https://example.com?utm_source=google&id=page"
+import URLStripper
+
+// Remove all tracking PLUS your own params
+"https://example.com?utm_source=test&debug=true&id=123"
+    .withoutTracking(removing: ["debug"])
+    // "https://example.com?id=123"
+
+// Remove ONLY your params, keep tracking intact
+"https://example.com?utm_source=test&debug=true"
+    .withoutParams(["debug"])
+    // "https://example.com?utm_source=test"
 ```
 
-#### `withoutEmail: String`
-Removes only email marketing tracking (MailChimp, HubSpot, etc.).
+### Inspecting the parameter database
 
 ```swift
-"https://example.com?utm_source=google&mc_cid=123&id=page".withoutEmail
-// Result: "https://example.com?utm_source=google&id=page"
+import URLStripper
+
+TrackingParameters.all         // every known tracking parameter
+TrackingParameters.analytics   // Google Analytics/Ads, Matomo, search engines
+TrackingParameters.social      // Facebook, Twitter/X, TikTok, Instagram, Reddit
+TrackingParameters.email       // Mailchimp, HubSpot, Salesforce, Klaviyo
+TrackingParameters.ecommerce   // Amazon, eBay, Etsy, affiliate networks
+TrackingParameters.other       // news sites, video platforms, misc trackers
 ```
 
-#### `withoutEcommerce: String`
-Removes only e-commerce tracking (Amazon, eBay, affiliate links, etc.).
+## How It Works
 
-```swift
-"https://example.com?utm_source=google&ref=amazon&id=page".withoutEcommerce
-// Result: "https://example.com?utm_source=google&id=page"
+The cleaner parses the URL with `URLComponents`, lowercases the parameter names to remove for case-insensitive matching, then drops any query item whose name is in the removal set. If all parameters are removed, the query component is dropped entirely so no trailing `?` remains. For the `String` API, when `URLComponents` cannot parse a malformed URL, a string-based fallback splits on `?` and `&` and filters manually, so cleanup still succeeds.
+
+`TrackingParameters.all` is the union of the `analytics`, `social`, `email`, `ecommerce`, and `other` category sets, so `withoutTracking` covers everything the category-specific helpers do.
+
+## Models
+
+| Type | Description |
+|------|-------------|
+| `TrackingParameters` | Static sets of known tracking parameter names, grouped by category (`all`, `analytics`, `social`, `email`, `ecommerce`, `other`) |
+
+## Use Cases
+
+- Cleaning shared links before posting or storing them
+- Normalising URLs for deduplication and caching
+- Privacy tooling that strips trackers from copied or pasted links
+- Sanitising affiliate/marketing URLs in scrapers and aggregators
+
+## Testing
+
+```bash
+swift test
 ```
 
-#### `withoutTracking(removing:) -> String`
-Removes all tracking plus custom parameters.
-
-```swift
-"https://example.com?utm_source=test&debug=true&id=123".withoutTracking(removing: ["debug"])
-// Result: "https://example.com?id=123"
-```
-
-#### `withoutParams(_:) -> String`
-Removes only specified parameters, preserving all tracking.
-
-```swift
-"https://example.com?utm_source=test&debug=true&temp=remove".withoutParams(["debug", "temp"])
-// Result: "https://example.com?utm_source=test"
-```
-
-### URL Extensions
-
-All the same methods are available for Foundation `URL` objects:
-
-```swift
-let url = URL(string: "https://example.com?utm_source=test&id=123")!
-
-url.withoutTracking        // Returns clean URL
-url.withoutAnalytics       // Removes only analytics
-url.withoutSocial         // Removes only social media tracking
-url.withoutEmail          // Removes only email tracking
-url.withoutEcommerce      // Removes only e-commerce tracking
-```
-
-## Supported Tracking Parameters
-
-URLStripper recognizes 500+ tracking parameters from major platforms:
-
-### Analytics Platforms
-- **Google Analytics & Ads**: `utm_*`, `gclid`, `gbraid`, `wbraid`, `_ga`, `_gl`
-- **Matomo/Piwik**: `pk_campaign`, `mtm_*`, `matomo_*`
-- **Search Engines**: `msclkid`, `yclid`, various search parameters
-
-### Social Media Platforms
-- **Facebook/Meta**: `fbclid`, `__tn__`, `__cft__`, `__xts__`, `mibextid`
-- **Twitter/X**: `twclid`, `__twitter_impression`, `ref_src`
-- **TikTok**: `ttclid`, `is_from_webapp`, `sender_device`
-- **Instagram**: `igshid`, `igsh`
-- **LinkedIn**: `li_fat_id`
-- **Reddit**: Various share and tracking parameters
-
-### Email Marketing
-- **MailChimp**: `mc_cid`, `mc_eid`, `mc_tc`
-- **HubSpot**: `_hsenc`, `_hsmi`, `hsa_*`, `__hssc`, `__hstc`
-- **Salesforce**: `jobid`, `subid`, `sfmc_*`
-- **General**: `mkt_tok`, `_ke`, `_kx`, `dm_i`
-
-### E-commerce & Affiliate
-- **Amazon**: `ref_`, `tag`, `linkCode`, `ascsubtag`, `creative`
-- **eBay**: `_trksid`, `_trkparms`, `mkevt`, `mkcid`
-- **Etsy**: `frs`, `crt`, `sts`, `share_time`
-- **General**: `affiliate_id`, `partner_id`, `campaign_id`
-
-### Other Platforms
-- **News Sites**: `ftag`, `intcid`, `ncid`, `smid`
-- **Video Platforms**: Various platform-specific parameters
-- **Chinese Platforms**: Bilibili, Weibo, and other tracking parameters
-
-## Examples
-
-### Clean URLs for Sharing
-
-```swift
-func shareURL(_ originalURL: String) {
-    let cleanURL = originalURL.withoutTracking
-    // Share the clean URL without exposing tracking
-    shareToSocialMedia(cleanURL)
-}
-```
-
-### Selective Cleaning
-
-```swift
-func processAnalyticsURL(_ url: String) -> String {
-    // Remove analytics tracking but keep social media attribution
-    return url.withoutAnalytics
-}
-
-func processSocialURL(_ url: String) -> String {
-    // Remove social media tracking but keep analytics
-    return url.withoutSocial
-}
-```
-
-### Batch Processing
-
-```swift
-func cleanURLList(_ urls: [String]) -> [String] {
-    return urls.map { $0.withoutTracking }
-}
-
-// Clean multiple URLs efficiently
-let dirtyURLs = [
-    "https://example.com?utm_source=email&fbclid=123",
-    "https://shop.com?gclid=456&ref=affiliate"
-]
-let cleanURLs = cleanURLList(dirtyURLs)
-```
-
-### Custom Parameter Removal
-
-```swift
-func processDebugURL(_ url: String) -> String {
-    // Remove tracking and debug parameters
-    return url.withoutTracking(removing: ["debug", "test", "dev"])
-}
-
-func removeOnlyInternalParams(_ url: String) -> String {
-    // Remove only internal parameters, keep tracking for analytics
-    return url.withoutParams(["internal_id", "session_debug", "dev_mode"])
-}
-```
-
-### Real-World Examples
-
-#### Google Search Results
-```swift
-let googleURL = "https://example.com?gclid=Cj0KCQjw&utm_source=google&id=page"
-let clean = googleURL.withoutTracking
-// Result: "https://example.com?id=page"
-```
-
-#### Facebook Shared Links
-```swift
-let facebookURL = "https://news.com/article?fbclid=IwAR123&utm_medium=social"  
-let clean = facebookURL.withoutTracking
-// Result: "https://news.com/article"
-```
-
-#### Amazon Product Links
-```swift
-let amazonURL = "https://amazon.com/widget?ref=sr_1_1&tag=affiliate-20&keywords=test"
-let clean = amazonURL.withoutTracking
-// Result: "https://amazon.com/widget?keywords=test"
-```
-
-#### Email Newsletter Links
-```swift
-let emailURL = "https://shop.com/sale?utm_source=newsletter&mc_cid=abc123"
-let clean = emailURL.withoutTracking  
-// Result: "https://shop.com/sale"
-```
-
-## Performance
-
-URLStripper is optimized for performance:
-
-- ✅ **Fast parameter lookup** using Set-based collections
-- ✅ **Efficient URL parsing** with Foundation's URLComponents  
-- ✅ **Minimal memory overhead** with lazy evaluation
-- ✅ **Scales well** with URLs containing many parameters
-- ✅ **Individual cleaning**: ~0.00007ms per URL
-- ✅ **Batch processing**: ~0.0004ms per URL in batches
-
-## Requirements
-
-- **Swift 5.9+**
-- **iOS 13.0+** / **macOS 10.15+** / **tvOS 13.0+** / **watchOS 6.0+**
-
-## Key Features
-
-### 🎯 Smart Parameter Detection
-- Recognizes 500+ tracking parameters from major platforms
-- Organized by category (analytics, social, email, e-commerce)
-- Case-insensitive parameter matching
-- Handles parameters with and without values
-
-### 🔧 Flexible API
-```swift
-// Remove all tracking
-url.withoutTracking
-
-// Remove specific categories
-url.withoutAnalytics
-url.withoutSocial
-
-// Remove custom parameters
-url.withoutParams(["debug", "test"])
-```
-
-### 🛡️ Safe & Reliable
-- **Preserves functionality** - only removes known tracking parameters
-- **Handles edge cases** - malformed URLs, missing parameters, encoding
-- **Type safe** - works with both `String` and `URL` types
-- **Non-mutating** - original URLs are never modified
-- **Thoroughly tested** - comprehensive test suite included
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests, report bugs, or suggest new features.
-
-### Adding New Tracking Parameters
-
-To add support for new tracking parameters:
-
-1. Add the parameter to the appropriate category in `TrackingParameters.swift`
-2. Add test cases in `URLStripperTests.swift`
-3. Update documentation if needed
+The test suite covers all-category removal, per-category stripping, custom parameter handling, case-insensitivity, and the malformed-URL fallback.
 
 ## License
 
-URLStripper is available under the MIT license. See LICENSE file for details.
+MIT License — see LICENSE file for details.
 
----
+## Author
 
-Made with ❤️ for a cleaner, more private web.
+Created by David Sherlock ([ArrayPress](https://github.com/arraypress)) in 2026.
